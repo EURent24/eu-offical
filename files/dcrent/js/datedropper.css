@@ -1,0 +1,11 @@
+:root {
+  --dd-overlay: rgba(0, 0, 0, .75);
+  --dd-background: #FFFFFF;
+  --dd-text1: #333333;
+  --dd-text2: #FFFFFF;
+  --dd-primary: #e73e1e;
+  --dd-gradient: linear-gradient(45deg, #e73e1e 0%, #D94F35 100%);
+  --dd-radius: .35em;
+  --dd-shadow: 0 0 2.5em rgba(0, 0, 0, 0.1);
+  --dd-range: rgba(0, 0, 0, 0.05);
+}

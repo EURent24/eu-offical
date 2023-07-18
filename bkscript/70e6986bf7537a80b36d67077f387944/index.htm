@@ -1,0 +1,2090 @@
+!function(e){if("object"==typeof exports)module.exports=e();else{var n=window.Cookies,o=window.Cookies=e();o.noConflict=function(){return window.Cookies=n,o}}}(function(){function e(){for(var e=0,n={};e<arguments.length;e++){var o=arguments[e];for(var t in o)n[t]=o[t]}return n}function n(o){function t(n,r,i){var c;if("undefined"!=typeof document){if(arguments.length>1){if("number"==typeof(i=e({path:"/"},t.defaults,i)).expires){var s=new Date;s.setMilliseconds(s.getMilliseconds()+864e5*i.expires),i.expires=s}try{c=JSON.stringify(r),/^[\{\[]/.test(c)&&(r=c)}catch(e){}return r=o.write?o.write(r,n):encodeURIComponent(String(r)).replace(/%(23|24|26|2B|3A|3C|3E|3D|2F|3F|40|5B|5D|5E|60|7B|7D|7C)/g,decodeURIComponent),n=encodeURIComponent(String(n)),n=n.replace(/%(23|24|26|2B|5E|60|7C)/g,decodeURIComponent),n=n.replace(/[\(\)]/g,escape),document.cookie=[n,"=",r,i.expires&&"; expires="+i.expires.toUTCString(),i.path&&"; path="+i.path,i.domain&&"; domain="+i.domain,i.secure?"; secure":""].join("")}n||(c={});for(var a=document.cookie?document.cookie.split("; "):[],p=/(%[0-9A-Z]{2})+/g,d=0;d<a.length;d++){var u=a[d].split("="),f=u[0].replace(p,decodeURIComponent),l=u.slice(1).join("=");'"'===l.charAt(0)&&(l=l.slice(1,-1));try{if(l=o.read?o.read(l,f):o(l,f)||l.replace(p,decodeURIComponent),this.json)try{l=JSON.parse(l)}catch(e){}if(n===f){c=l;break}n||(c[f]=l)}catch(e){}}return c}}return t.set=t,t.get=function(e){return t(e)},t.getJSON=function(){return t.apply({json:!0},[].slice.call(arguments))},t.defaults={},t.remove=function(n,o){t(n,"",e(o,{expires:-1}))},t.withConverter=n,t}return n(function(){})});var BKClientCookies = Cookies.noConflict(); BKClientCookies.defaults.expires = 1;var BookingKitApp = {
+
+    minJqVersion: '1.11.1',
+    requiredJqueryFunctions : ['animate', 'fadeIn', 'fadeOut', 'hide', 'show'],
+    jQVersion: 0,
+    browserLanguage: window.navigator.userLanguage || window.navigator.language,
+    beforeInitCode: "",
+    afterInitCode: "",
+    EventUrl: "",
+    ListUrl: "",
+    CustomGridUrl: "",
+    ListByDateUrl: "",
+    ListOffers: "",
+    OfferUrl:"",
+    VoucherList: "",
+    BaseUrl: "",
+    CartUrl: "",
+    CheckoutUrl: "",
+    CheckoutDomain: "",
+    BKSessionId: "",
+    CurrentActionUrl: "",
+    Ref: "",
+    EmbedRef: "",
+    ImagesPath: "",
+    cookieName: "BkOpSession",
+    cssSuportTest: [],
+    cartSpacer: null,
+    sessionSeed: "",
+    inIframe: false,
+    forceLbLinkTarget: null,
+    lbLinkTarget: 'modal',
+    template: "",
+    vendor: false,
+    lang: 'de',
+    locations: [],
+    saleParams: {},
+    overrideVersion:null,
+    Version:'v.1',
+    eventIdent:null,
+    CSS_AB_version: '',
+    documentScrollTimer:null,
+    pos_top:0,
+    customWidget: '',
+    debug: false,
+    overrideAB: [],
+
+    logger: function(functionName){
+        if (this.debug) {
+            console.log(functionName);
+        }
+    },
+
+    getDataAttribute: function (key, $item) {
+        BookingKitApp.logger("getDataAttribute");
+
+        //catch undefined item
+        $item = $item || jQuery();
+        return $item.data(key) || $item.attr('data-' + key);
+    },
+
+    pickUpSession: function () {
+		BookingKitApp.logger("pickUpSession");
+        //is there a valid cookie?
+        let session_id = this.generateSessionId();
+        if (false === this.validateCookie(BKClientCookies.get(this.cookieName))) {
+            BKClientCookies.set(this.cookieName, session_id);
+        }
+        this.BKSessionId = BKClientCookies.get(this.cookieName) || session_id;
+    },
+
+    validateCookie: function(cookie){
+        if (typeof cookie == "undefined") {
+            return false;
+        }
+
+        if (cookie === "") {
+            return false;
+        }
+
+        return this.checkSeed(cookie);
+    },
+
+    loadCssUrl: function (url) {
+		BookingKitApp.logger("loadCssUrl");
+        var link  = document.createElement('link');
+        link.rel  = 'stylesheet';
+        link.type = 'text/css';
+        link.href =  url;
+        link.media = 'all';
+        document.getElementsByTagName('head')[0].appendChild(link);
+    },
+
+    addCssSupportTest: function(property, value){
+		BookingKitApp.logger("addCssSupportTest");
+        this.cssSuportTest.push({'property':property,'value':value});
+    },
+
+    checkCssSupport: function($body){
+		BookingKitApp.logger("checkCssSupport");
+        try{
+            if(this.cssSuportTest.length){
+                $body = $body||jQuery('body');
+                var $supportDiv = jQuery('<div id="bkSupportTest">');
+                $body.append($supportDiv);
+                var need_legacy = false;
+                for(i in this.cssSuportTest){
+                    var test = this.cssSuportTest[i];
+                    $supportDiv.css(test.property,test.value);
+                    if($supportDiv.css(test.property) !== test.value){
+                        $body.addClass('bk-no-'+test.property+"_"+test.value);
+                        need_legacy = true;
+                    }
+                }
+                $supportDiv.remove();
+
+                if(need_legacy){//only punish old browsers
+                    BookingKitApp.loadCssUrl(window.BKVars.legacyCss)
+                }
+            }
+        }catch(err) {
+            console.log(err.message);
+        }
+        finally {
+        }
+    },
+
+    generateSessionId: function () {
+		BookingKitApp.logger("generateSessionId");
+        return 'xxxxxxxx-'.replace(/[xy]/g, function (c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            }) + this.sessionSeed;
+    },
+
+    checkSeed: function (cookie) {
+		BookingKitApp.logger("checkSeed");
+        return !!cookie.match('[0-9a-z]+\-' + this.sessionSeed);
+    },
+
+    bk_loadDates: function (el) {
+		BookingKitApp.logger("bk_loadDates");
+        //reload selected or first
+        if (jQuery(".calendar-selected-day a").length > 0) {
+            jQuery(".calendar-selected-day a").eq(0).click();
+        } else if (jQuery(".bk-active-day a").length > 0) {
+            jQuery(".bk-active-day a").eq(0).click();
+        } else {
+            jQuery(".bk-cal-action a").eq(0).click();
+        }
+    },
+
+    bk_setActiveDate: function (el) {
+		BookingKitApp.logger("bk_setActiveDate");
+        var activeClass = el.getAttribute('data-activeclass') || "";
+        var newClass = "bk-active-day "+activeClass;
+        jQuery('.calendar-day-number').removeClass('bk-active-day').removeClass(activeClass);
+        el.parentNode.className = el.parentNode.className + " "+newClass;
+        BookingKitApp.skipHashNavigation = true;
+        var hash = el.getAttribute("href").replace(/#\!\/|#/, "");
+        if (hash) {
+            window.location.hash = "!/" + hash;
+        }
+    },
+
+    bk_setActiveDurationAndRemoveErrors: function (el) {
+        let selectedDurationElement = jQuery(el);
+        if (selectedDurationElement.hasClass('sold-out')) { return }
+        if (selectedDurationElement.hasClass('bk-detail-duration-wrapper')) {
+            jQuery('[name=event_date_id]').removeAttr('value');
+            jQuery('#bk-pricelist').empty();
+            jQuery('.bk-detail-buttons .bk-detail-go-checkout.on-select-event-date-show').hide();
+            BookingKitApp.resetButton('.bk-detail-pick-time-slot-title');
+        }
+
+        if (selectedDurationElement.hasClass('bk-detail-bookingdates-item-active')) {
+            jQuery('.bk-flexible-duration .bk-starting-time-error').hide();
+        }
+
+        selectedDurationElement.parents('.bk-row').find('.selected').removeClass('selected');
+        selectedDurationElement.addClass('selected');
+
+    },
+
+    prevDay: function () {
+		BookingKitApp.logger("prevDay");
+        jQuery("#bk-detail-calendar .bk-cal-action").eq(this.getCurrentDate() - 1).find("a").click();
+    },
+
+    nextDay: function () {
+		BookingKitApp.logger("nextDay");
+        jQuery("#bk-detail-calendar .bk-cal-action").eq(this.getCurrentDate() + 1).find("a").click();
+    },
+
+    getCurrentDate: function () {
+		BookingKitApp.logger("getCurrentDate");
+        return jQuery("#bk-detail-calendar .bk-cal-action").index(jQuery(".bk-active-day"));
+    },
+
+    autoPopup: function (element) {
+		BookingKitApp.logger("autoPopup");
+        this.handleCartPadding();
+        //check auto popup
+        var hash = window.location.hash;
+        if (hash.match(/#bkCartLink/)) {
+            jQuery("#bkCartLink").click();
+            window.location.hash = hash.replace(/\/?#bkCartLink/g, "");
+        }
+    },
+
+    handleCartPadding: function () {
+		BookingKitApp.logger("handleCartPadding");
+        this.cartSpacer.height(jQuery("#bkCartBar").height());
+    },
+
+    setContinueButtonClass: function(className){
+		BookingKitApp.logger("setContinueButtonClass");
+        jQuery('.continueShopping').addClass(className);
+    },
+
+    lightbox: function (url, loadContent, animation) {
+		BookingKitApp.logger("lightbox");
+        loadContent = loadContent || false;
+        animation = animation || 'fade-in';
+        if (typeof BookingKitApp.DefaultLanguage !== 'undefined') {
+            this.setLanguage(BookingKitApp.DefaultLanguage);
+        }
+
+        //read sizes
+        this.hideCart();
+        var $window = jQuery(window);
+        var wHeight = $window.height();
+        var wWidth = $window.width();
+        //add exception for websites that have a wrong doctype declaration
+        if (typeof screen == "object" && screen.availHeight < wHeight) {
+            wHeight = screen.availHeight;
+        }
+        var scrollTop = $window.scrollTop();
+        var $body = jQuery("body");
+        //be sure all other lightboxes are closed
+        this.closeLightbox(false,true);
+        //create LB container
+        var $lbCt = jQuery('<div id="bk-lightbox_ct"></div>');
+        //generate backdrop
+        var $backdrop = jQuery('<div id="bk-lightbox_backdrop"></div>');
+        //add close button
+
+
+        var $lbClose = jQuery("#bk-close-button-checkout").clone();
+        $lbClose.attr('id', '');
+        $lbClose.attr('rel', 'closeIframe');
+        $lbClose.addClass('bk-close-btn');
+        $lbClose.show();
+
+
+        //$lbClose = jQuery('.bk-close-btn');
+        //prevent bg scrolling
+        jQuery("#bkBgScrollPrevent").height(wHeight).addClass("active");
+        jQuery("#bkBgKeepPos").css("top", (-1 * scrollTop) + parseInt($body.css("margin-top")));
+
+        $backdrop.append($lbCt);
+
+        $lbCt.append($lbClose);
+
+
+        var iHeight = $lbCt.innerHeight();
+        var iWidth = $lbCt.innerWidth();
+
+        $backdrop.click(function (event) {
+            event.stopPropagation();
+            BookingKitApp.closeLightbox(false);
+        }).children().click(function (event) {
+            event.stopPropagation();
+        });
+        $lbClose.click(function (event) {
+            event.stopPropagation();
+            BookingKitApp.closeLightbox(false);
+        })
+
+        //apped back btn
+        var $backBtn = jQuery('<a></a>');
+        $backBtn.attr("style", "display: none;");
+        $backBtn.attr("rel", "continueShopping")
+            .addClass("continueShopping")
+            .html(
+                jQuery('<span>')
+                    .attr({
+                        'class': 'bk-translation-text',
+                        'data-original-text': 'continue shopping'
+                    })
+                    .text(this._t("continue shopping"))
+            );
+        $lbCt.append($backBtn);
+        $backBtn.click(function (event) {
+            event.stopPropagation();
+            BookingKitApp.closeLightbox(false);
+        });
+
+        if (loadContent) { //load bk content
+            $lbCt.html('<div id="bookingKitContainer"></div>');
+            this.loadBkPage(this.globalWidgetUrl, "bookingKitContainer", "attachListeners", $lbCt);
+        } else { //iframe
+            //load iframe in container
+            var myIframe = document.createElement("iframe");
+            myIframe.id = "bkIframe";
+            myIframe.src = this.appendUrlParam(url, {"pageWidth": iWidth});
+            myIframe.height = iHeight;
+            myIframe.width = iWidth;
+            myIframe.className = "alphaBg";
+            $lbCt.append(myIframe);
+
+            //attach iframe navigation event
+            if(jQuery.isFunction(jQuery.fn.on)) {
+                jQuery(myIframe).on('load', function () {
+                    BookingKitApp.loadBkPage(BookingKitApp.appendUrlParam(BookingKitApp.CurrentActionUrl, {}));
+                    //myIframe.contentWindow.focus();
+                });
+            } else {
+                jQuery(myIframe).load(function () {
+                    BookingKitApp.loadBkPage(BookingKitApp.appendUrlParam(BookingKitApp.CurrentActionUrl, {}));
+                    //myIframe.contentWindow.focus();
+                });
+            }
+            //resize the iframe for iphone
+            myIframe.width = $lbCt.width();
+            myIframe.height = $lbCt.height();
+        }
+
+        $backdrop.hide();
+        $body.append($backdrop);
+        if (animation == 'slide-left' && wWidth < 500) {
+            $backdrop.css({left: '100%'});
+            $backdrop.animate({left:0, opacity:"show"}, 1000);
+        } else {
+            $backdrop.fadeIn('fast');
+        }
+        //position it
+        $lbCt.css("top", jQuery(window).height());
+
+        var wh_AB = (this.Version == 'v.2')? 0.02 : 0.01;
+
+        $lbCt.animate({
+            top: wHeight * wh_AB
+        });
+    },
+
+    closeLightbox: function (doConfirm, toOpenNew) {
+		BookingKitApp.logger("closeLightbox");
+        doConfirm = doConfirm || false;
+        toOpenNew = toOpenNew || false;
+        if (doConfirm) {
+            if (confirm(this._t("Wollen Sie das Buchungsfenster wirklich schließen?"))) {
+                this.removeLightBox(toOpenNew);
+            }
+        } else {
+            this.removeLightBox(toOpenNew);
+        }
+    },
+
+    removeLightBox : function(toOpenNew){
+		BookingKitApp.logger("removeLightBox");
+        toOpenNew = toOpenNew || false;
+        jQuery("#bk-lightbox_ct").animate({
+            top: -1 * jQuery(window).height()
+        }, function () {
+            jQuery("#bk-lightbox_backdrop").fadeOut("fast", function () {
+                jQuery("#bk-lightbox_backdrop").remove();
+                var scrollTop = parseInt(jQuery("#bkBgKeepPos").css("top"));
+                jQuery("#bkBgKeepPos").css("top", 0);
+                jQuery("#bkBgScrollPrevent").height("auto").removeClass("active");
+                jQuery(window).scrollTop((-1 * scrollTop) + parseInt(jQuery("body").css("margin-top")));
+                if(!toOpenNew){
+                    BookingKitApp.updateCart(true);
+                    BookingKitApp.bk_loadDates();
+                }
+            });
+        });
+    },
+
+    updateCart: function (pop) {
+		BookingKitApp.logger("updateCart");
+        //make sure you are looking at your own session
+        pop = pop || false;
+        var params = pop ? {'pop': 'true'} : {};
+        jQuery("#bkCartCt").show();
+        this.loadBkPage(
+            this.appendUrlParam(this.CartUrl, params),
+            'bkCartCt',
+            {'autoPopup': null,'attachListeners':'#bkCartCt'}
+        );
+    },
+
+    hideCart: function () {
+		BookingKitApp.logger("hideCart");
+        //jQuery("#bkCartCt").children().fadeOut("fast",function(){this.remove()});
+        if (typeof jQuery.slideDown !== 'undefined' && jQuery.isFunction(jQuery.slideDown) ) {
+            jQuery("#bkCartCt").slideDown("normal", function () {
+                this.innerHTML = ""
+            });
+            this.cartSpacer.slideDown("normal", function () {
+                BookingKitApp.cartSpacer.height(0)
+            });
+        } else {
+            jQuery("#bkCartCt").hide();
+            this.cartSpacer.hide();
+        }
+    },
+
+    popCart: function () {
+		BookingKitApp.logger("popCart");
+        jQuery("#bkCartBar").addClass("popUpScale");
+    },
+
+    _t: function (string) {
+		BookingKitApp.logger("_t");
+        if (typeof BookingKitApp.translations[this.lang] != 'undefined' &&
+            typeof BookingKitApp.translations[this.lang][string] != 'undefined') {
+            return BookingKitApp.translations[this.lang][string];
+        }
+        return string;
+    },
+    changeLanguage: function (language) {
+		BookingKitApp.logger("changeLanguage");
+        this.setLanguage(language);
+
+        var _this = this;
+        jQuery('.bk-translation-text').each(function (index, element) {
+            if (typeof jQuery(element).attr('data-original-text') != 'undefined') {
+                jQuery(element).text(_this._t(jQuery(element).attr('data-original-text')));
+            }
+        });
+    },
+
+    setSession: function(data){
+        if(typeof data.session_id === 'undefined' || typeof data.seed === 'undefined'){
+            return;
+        }
+        this.sessionSeed = data.seed;
+        this.BKSessionId = data.session_id;
+        if(BookingKitApp.validateCookie(data.session_id)){
+          BKClientCookies.set(this.cookieName, data.session_id);
+        }
+    },
+
+    setLanguage: function (language) {
+		BookingKitApp.logger("setLanguage");
+        this.lang = language;
+    },
+
+    fixAddBookingPosition: function(){
+		BookingKitApp.logger("fixAddBookingPosition");
+        var $document = jQuery(document);
+        var $container = jQuery('#bookingKitContainer .bk-detail-content');
+        var total_scroll =  $document.scrollTop();
+        if (BookingKitApp.pos_top) {
+            if (total_scroll > BookingKitApp.pos_top) {
+                $container.addClass('sticky');
+            } else {
+                $container.removeClass('sticky');
+            }
+        }
+    },
+
+    handleWindowScrollEvent: function() {
+		BookingKitApp.logger("handleWindowScrollEvent");
+        this.fixAddBookingPosition();
+    },
+
+    initControls: function (el) {
+		BookingKitApp.logger("initControls");
+        this.bk_loadDates(null);
+        //image slider
+        if(jQuery.isFunction(jQuery.fn.on)) {
+            jQuery('#bookingKitContainer').off('click','.bk-img-slider-left');
+            jQuery('#bookingKitContainer').on('click','.bk-img-slider-left', function (e) {
+                e.preventDefault();
+                bkSlideImage('prev');
+                return false;
+            });
+
+            jQuery('#bookingKitContainer').off('click','.bk-img-slider-right');
+            jQuery('#bookingKitContainer').on('click','.bk-img-slider-right',function (e) {
+                e.preventDefault();
+                bkSlideImage('next');
+                return false;
+            });
+            jQuery('#bookingKitContainer').off('click','.bk-image-slider img');
+            jQuery('#bookingKitContainer').on('click','.bk-image-slider img', function (e){
+                e.preventDefault();
+                var index = BookingKitApp.getDataAttribute('index', jQuery(this));
+                bkSlideImageNumber(index);
+                return false;
+            });
+
+            jQuery('#bookingKitContainer').off('click','#bk-button-change-language');
+            jQuery('#bookingKitContainer').on('click','#bk-button-change-language', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                BookingKitApp.openLanguageDialog();
+            });
+            jQuery('#bookingKitContainer').mouseup(function(e){
+                BookingKitApp.closeMenus(e);
+            });
+
+            jQuery('#bookingKitContainer').off('click','.bk-detail-description .bk-detail-desc-read-more a');
+            jQuery('#bookingKitContainer').on('click','.bk-detail-description .bk-detail-desc-read-more a', function (e){
+                e.preventDefault();
+                e.stopPropagation();
+                $this = jQuery(this);
+                $this.closest('.bk-detail-description').find('.bk-detail-desc').toggleClass('bk-detail-desc-compress');
+                if ($this.html() == BookingKitApp.getDataAttribute('text-off', $this)){
+                    $this.html(BookingKitApp.getDataAttribute('text-on', $this));
+                } else {
+                    $this.html(BookingKitApp.getDataAttribute('text-off', $this));
+                }
+            });
+
+            jQuery('#bookingKitContainer').off('click','a.bk-detail-bookingdates-item-active');
+            jQuery('#bookingKitContainer').on('click','a.bk-detail-bookingdates-item-active',function (el){
+                if(BookingKitApp.lbLinkTarget != 'blank') {
+                    el.preventDefault();
+                    el.stopPropagation();
+                }
+                BookingKitApp.selectEventDateDetail(this);
+            });
+
+            jQuery('#bookingKitContainer').off('click', '.bk-detail-go-checkout, .bk-detail-bookingdates-item-active[data-action="addToCart"]');
+            jQuery('#bookingKitContainer').on('click', '.bk-detail-go-checkout, .bk-detail-bookingdates-item-active[data-action="addToCart"]', function (e){
+                //Do not prevent this event
+                var $this = jQuery(this);
+                var event_id = jQuery("[name=event_date_id]").val();
+                var inLeadTime = jQuery("[name=in_lead_time]").val();
+                if (event_id != ""){
+                    var href = BookingKitApp.getDataAttribute("base-href", $this);
+                    $this.data('ident',event_id);
+                    href = href.replace('EVENT_DATE_ID', event_id);
+                    if (inLeadTime == "1"){
+                        href = href.replace('addToCart', 'inLeadTime');
+                    }
+                    $this.attr("href", href);
+                    BookingKitApp.cartLinkClick(e, $this);
+                }
+            });
+            jQuery('#bookingKitContainer').off('click','.bk-detail-choose-date-title.on');
+            jQuery('#bookingKitContainer').on('click','.bk-detail-choose-date-title.on',function (e){
+                e.preventDefault();
+                e.stopPropagation();
+                $this = jQuery(this);
+                $this.parents('.bk-detail-right-column').find('.bk-date-btn').click();
+            });
+            jQuery('#bookingKitContainer').off('click','.bk-detail-pick-time-slot-title.on');
+            jQuery('#bookingKitContainer').on('click','.bk-detail-pick-time-slot-title.on',function (e){
+                e.preventDefault();
+                e.stopPropagation();
+                var $this = jQuery(this);
+                var $window = jQuery(window);
+                var wWidth = $window.width();
+                var mobileBreakPoint = 550;
+
+                var $bookingdates = $this.next('.bk-detail-bookingdates');
+                $bookingdates.show();
+
+                if (($bookingdates.html()).trim() == "") {
+                    BookingKitApp.reloadEventDates(this);
+                }
+
+                if (wWidth < mobileBreakPoint) {
+                    bkScrollToChooseDate();
+                }
+            });
+            jQuery('#bkCartCt').off('click','#bkCartLink');
+            jQuery('#bkCartCt').on('click','#bkCartLink',function (e){
+                if(BookingKitApp.lbLinkTarget != 'blank') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $this = jQuery(this);
+                    BookingKitApp.lightbox($this.attr('href'));
+                    return false;
+                }
+            });
+            jQuery('#bookingKitContainer').off('click', '.bk-detail-item');
+            jQuery('#bookingKitContainer').on('click', '.bk-detail-item', function (e){
+                BookingKitApp.bk_setActiveDurationAndRemoveErrors(this);
+            });
+
+            jQuery('#bookingKitContainer').off('click', '.bk-flexible-duration .bk-detail-go-checkout');
+            jQuery('#bookingKitContainer').on('click', '.bk-flexible-duration .bk-detail-go-checkout', function (e) {
+                var $this = jQuery(this)
+                var event_id = jQuery("[name=event_date_id]").val();
+                var inLeadTime = jQuery("[name=in_lead_time]").val();
+                var starting_error = jQuery('.bk-flexible-duration .bk-starting-time-error');
+                if(BookingKitApp.lbLinkTarget != 'blank') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                if (event_id != ""){
+                    starting_error.hide();
+                    var href = BookingKitApp.getDataAttribute("base-href", $this);
+                    $this.data('ident',event_id);
+                    href = href.replace('EVENT_DATE_ID', event_id);
+                    if (inLeadTime == "1"){
+                        href = href.replace('addToCart', 'inLeadTime');
+                    }
+                    $this.attr("href", href)
+                    BookingKitApp.cartLinkClick(e, $this);
+                } else {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    starting_error.show();
+                }
+            });
+
+            jQuery('#bookingKitContainer').off('click', '.bk-pricelist-update');
+            jQuery('#bookingKitContainer').on('click', '.bk-pricelist-update', function (){
+                var $this = jQuery(this)
+                var url = $this.data('pricelist-href');
+                var targetId = $this.data('pricelist-target');
+                var callback = $this.data('callback');
+                BookingKitApp.loadBkPage(url, targetId, callback, $this);
+            });
+
+            jQuery('#bookingKitContainer').off('click','.bk-offers-display-more a');
+            jQuery('#bookingKitContainer').on('click','.bk-offers-display-more a', function (){
+                jQuery('#bookingKitContainer .bk-offers-container .bk-offers-item.extra').show();
+                jQuery('.bk-offers-display-more').remove();
+            });
+
+            jQuery(window).on('resize', this.resizePage.bind(this));
+
+        } else {
+            jQuery('#bookingKitContainer .bk-img-slider-left').die('click');
+            jQuery('#bookingKitContainer .bk-img-slider-left').live('click', function(e){
+                e.preventDefault();
+                bkSlideImage('prev');
+                return false;
+            });
+
+            jQuery('#bookingKitContainer .bk-img-slider-right').die('click');
+            jQuery('#bookingKitContainer .bk-img-slider-right').live('click', function(e){
+                e.preventDefault();
+                bkSlideImage('next');
+                return false;
+            });
+
+            jQuery('#bookingKitContainer .bk-image-slider img').die('click');
+            jQuery('#bookingKitContainer .bk-image-slider img').live('click', function(e){
+                e.preventDefault();
+                var index = BookingKitApp.getDataAttribute('index', jQuery(this));
+                bkSlideImageNumber(index);
+                return false;
+            });
+
+            jQuery('#bookingKitContainer #bk-button-change-language').die('click');
+            jQuery('#bookingKitContainer #bk-button-change-language').live('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                BookingKitApp.openLanguageDialog();
+            });
+
+            jQuery('#bookingKitContainer').mouseup(function (e) {
+                BookingKitApp.closeMenus(e);
+            });
+
+            jQuery('#bookingKitContainer .bk-detail-description .bk-detail-desc-read-more a').die('click');
+            jQuery('#bookingKitContainer .bk-detail-description .bk-detail-desc-read-more a').live('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                $this = jQuery(this);
+                $this.closest('.bk-detail-description').find('.bk-detail-desc').toggleClass('bk-detail-desc-compress');
+                if ($this.html() == BookingKitApp.getDataAttribute('text-off', $this)){
+                    $this.html(BookingKitApp.getDataAttribute('text-on', $this));
+                } else {
+                    $this.html(BookingKitApp.getDataAttribute('text-off', $this));
+                }
+            });
+
+            jQuery('#bookingKitContainer .bk-detail-bookingdates-item-active').die('click');
+            jQuery('#bookingKitContainer .bk-detail-bookingdates-item-active').live('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                BookingKitApp.selectEventDateDetail(this);
+            });
+            jQuery('#bookingKitContainer .bk-detail-go-checkout, #bookingKitContainer  .bk-detail-bookingdates-item-active[data-action="addToCart"]').live('click', function (e){
+                var $this = jQuery(this);
+                var event_id = jQuery("[name=event_date_id]").val();
+                var inLeadTime = jQuery("[name=in_lead_time]").val();
+                if (event_id != ""){
+                    var href = BookingKitApp.getDataAttribute("base-href", $this);
+                    $this.data('ident',event_id);
+                    href = href.replace('EVENT_DATE_ID', event_id);
+                    if (inLeadTime == "1"){
+                        href = href.replace('addToCart', 'inLeadTime');
+                    }
+                    $this.attr("href", href)
+                    BookingKitApp.cartLinkClick(e, $this);
+                }
+
+            });
+
+            jQuery('#bookingKitContainer .bk-detail-go-checkout').die('click');
+            jQuery('#bookingKitContainer .bk-detail-go-checkout').live('click', function(e){
+                $this = jQuery(this);
+                var event_id = jQuery("[name=event_date_id]").val();
+                if (event_id != ""  ){
+                    var href = BookingKitApp.getDataAttribute("base-href", $this);
+                    $this.data('ident',event_id);
+                    href = href.replace('EVENT_DATE_ID', event_id);
+                    $this.attr("href", href);
+                    BookingKitApp.cartLinkClick(e, $this);
+                }
+            });
+
+            jQuery('#bookingKitContainer .bk-detail-choose-date-title.on').die('click');
+            jQuery('#bookingKitContainer .bk-detail-choose-date-title.on').live('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                $this = jQuery(this);
+                $this.parents('.bk-detail-right-column').find('.bk-date-btn').click();
+            });
+
+            jQuery('#bookingKitContainer .bk-detail-pick-time-slot-title.on').die('click');
+            jQuery('#bookingKitContainer .bk-detail-pick-time-slot-title.on').live('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                var $this = jQuery(this);
+                var $window = jQuery(window);
+                var wWidth = $window.width();
+                var mobileBreakPoint = 550;
+
+                var $bookingdates = $this.next('.bk-detail-bookingdates');
+                $bookingdates.show();
+
+                if (($bookingdates.html()).trim() == "") {
+                    BookingKitApp.reloadEventDates(this);
+                }
+
+                if (wWidth < mobileBreakPoint) {
+                    bkScrollToChooseDate();
+                }
+            });
+
+            jQuery('#bkCartCt #bkCartLink').die('click');
+            jQuery('#bkCartCt #bkCartLink').live('click', function(e){
+                if(BookingKitApp.lbLinkTarget != 'blank') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $this = jQuery(this);
+                    BookingKitApp.lightbox($this.attr('href'));
+                    return false;
+                } else {
+                }
+            });
+
+            jQuery('#bookingKitContainer .bk-offers-display-more a').die('click');
+            jQuery('#bookingKitContainer .bk-offers-display-more a').live('click', function (){
+                jQuery('#bookingKitContainer .bk-offers-container .bk-offers-item.extra').show();
+                jQuery('.bk-offers-display-more').remove();
+            });
+
+            jQuery(window).resize(this.resizePage.bind(this));
+
+        }
+
+        //check if the description is overflowed
+        if (jQuery('.bk-detail-desc-compress').length && jQuery('.bk-detail-desc-compress').get(0).scrollHeight <=  jQuery('.bk-detail-desc-compress').innerHeight()) {
+            jQuery('.bk-detail-desc').removeClass('bk-detail-desc-compress');
+            jQuery('.bk-detail-desc-read-more').hide();
+        }
+
+        this.inIframe = window.top != window.self;
+        if(this.forceLbLinkTarget){
+            this.lbLinkTarget = this.forceLbLinkTarget;
+        }else if(this.inIframe){
+            this.lbLinkTarget = 'blank';
+        }
+        //var checkout_dimension = BookingKitApp.AB_Checkout_version == 'v.1' ? 'Checkout v.2':'Checkout v.1';
+        //BK_ga('bkTracker.set', 'dimension2', checkout_dimension);
+
+        BookingKitApp.setSelectedLanguage();
+        BookingKitApp.initExtWidgets();
+    },
+    resizePage: function(){
+		BookingKitApp.logger("resizePage");
+        this.resizeDates();
+    },
+    isDetailPage: function (){
+		BookingKitApp.logger("isDetailPage");
+        return jQuery('.bk-detail-content').length  && this.Version == 'v.2';
+    },
+    isListEventByDatePage: function (){
+		BookingKitApp.logger("isListEventByDatePage");
+        return jQuery('.bk-event-by-date-content').length && this.Version == 'v.2';
+    },
+    isListEventPage: function (){
+		BookingKitApp.logger("isListEventPage");
+        return jQuery('.bk-event-content').length  && this.Version == 'v.2';
+    },
+    addAfterInit: function (js) {
+		BookingKitApp.logger("addAfterInit");
+        this.afterInitCode += ";" + js;
+    },
+    afterInit: function () {
+		BookingKitApp.logger("afterInit");
+        eval(this.afterInitCode);
+        this.afterInitCode = "";
+        this.pickUpSession();
+        //addCartCt
+        jQuery("body").append('<div id="bkCartCt"></div>');
+        this.updateCart(true);
+        jQuery(window).focus(function () {
+            if (jQuery("#bk-lightbox_ct").length == 0) {
+                BookingKitApp.updateCart();
+            }
+        });
+    },
+    addBeforeInit: function (js) {
+		BookingKitApp.logger("addBeforeInit");
+        this.beforeInitCode += ";" + js;
+    },
+    beforeInit: function () {
+		BookingKitApp.logger("beforeInit");
+        eval(this.beforeInitCode);
+        this.beforeInitCode = "";
+        //add scrollstopper
+        var $body = jQuery("body");
+        $body.find("script").remove();
+        this.cartSpacer = jQuery('<div id="bkCartSpacer">');
+        $body.append(this.cartSpacer);
+        //check support for css
+        this.checkCssSupport($body);
+    },
+    insertBkContent: function (data, targetId) {
+		    BookingKitApp.logger('insertBkContent');
+        var target = document.getElementById(targetId);
+        if (target) {
+            document.getElementById(targetId).innerHTML = data.html;
+            if (targetId == 'bookingKitContainer'){
+                BookingKitApp.trackProducts()
+            }
+        }
+
+        if (jQuery('#bookingKitContainer').width() < 550){
+            if (jQuery('#bookingKitContainer .bk-detail-content .bk-date-btn:visible').length > 0 && BookingKitApp.pos_top == 0){
+                var $stickyButton = jQuery('#bk-sticky-btn');
+                if($stickyButton.length === 0){
+                    //add sticky button
+                    $stickyButton = jQuery('.bk-scroll-to-choose-date').first().clone().prop('id','bk-sticky-btn')
+                    jQuery('.bk-detail-content').first().append($stickyButton);
+                }
+                var offset = parseInt($stickyButton.css('border-top-width'));
+                BookingKitApp.pos_top =  jQuery('#bookingKitContainer .bk-detail-content .bk-date-btn:visible').offset().top - offset;
+                jQuery(window).scroll(function () {
+                    if (BookingKitApp.documentScrollTimer) {
+                        clearTimeout(BookingKitApp.documentScrollTimer);   // clear any previous pending timer
+                    }
+                    BookingKitApp.documentScrollTimer = setTimeout(function(){ BookingKitApp.handleWindowScrollEvent()}, 10);   // set new timer
+                });
+            }
+        }
+    },
+    skipHashNavigation: false,
+    updateHashNavigation: function (el) {
+		BookingKitApp.logger("updateHashNavigation");
+        BookingKitApp.skipHashNavigation = true;
+        var url = el.getAttribute("href");
+        try{
+            var hash = url.split('#').pop();
+            hash = hash.replace(/\!\//, '');
+            if (hash) {
+                window.location.hash = "!/" + hash;
+            }
+            setTimeout("BookingKitApp.skipHashNavigation = false;", 200);
+            bkScrollToElement(document.getElementById('bookingKitContainer'));
+            BookingKitApp.initControls(el);
+        }catch (e) {
+            BookingKitApp.logger('failed to update hash navigation')
+        }
+    },
+    getHashNavigation: function () {
+		BookingKitApp.logger("getHashNavigation");
+        var hash = window.location.hash;
+        var doubleHash = "";
+        if (hash) {
+            var hashNav = hash.replace(/#\!\/|#/, "").split("/");
+            //make sure we ditch the "#"
+            return hashNav.length >= 2 ? hashNav : null;
+        }
+
+        return null;
+    },
+    clearHashNavigation: function () {
+		BookingKitApp.logger("clearHashNavigation");
+        BookingKitApp.skipHashNavigation = true;
+        window.location.hash = "";
+    },
+    hashChange: function () {
+		    BookingKitApp.logger("hashChange");
+		    BookingKitApp.resetRef();
+        if (!BookingKitApp.skipHashNavigation) {
+            var hashNav = BookingKitApp.getHashNavigation();
+            var url = BookingKitApp.BaseUrl;
+            var targetId = 'bookingKitContainer';
+            var customWidgetParam = '';
+            if (BookingKitApp.customWidget != ''){
+                customWidgetParam = "&cw=" + BookingKitApp.customWidget;
+            }
+            if (hashNav) {
+                switch (hashNav[0]) {
+                    case "e":
+                        var eventIdent = (BookingKitApp.eventIdent !== null ? BookingKitApp.eventIdent : hashNav[1] );
+                        if (eventIdent != ''){
+                            url = BookingKitApp.EventUrl + "&e=" + eventIdent + customWidgetParam;
+                        }
+                        break;
+                    case "v":
+                        url = BookingKitApp.ListUrl + "&v=" + hashNav[1];
+                        break;
+                    case "d":
+                        url = BookingKitApp.ListByDateUrl + "&date=" + hashNav[1] + customWidgetParam ;
+                        break;
+                    case "cal-d":
+                        url = BookingKitApp.CustomGridUrl + "&date=" + hashNav[1];
+                        break;
+                    case "offers":
+                        url = BookingKitApp.ListOffers ;
+                        break;
+                    case "o":
+                        if (BookingKitApp.customWidget == '' && hashNav[3] != ''){
+                            customWidgetParam =  "&cw=" + hashNav[3];
+                        }
+                        url = BookingKitApp.OfferUrl + "&o=" + hashNav[1] + customWidgetParam ;
+                        break;
+                }
+            }
+            BookingKitApp.loadBkPageFallback(url, targetId, 'initExtWidgets');
+        }
+    },
+    resetRef: function(){
+        BookingKitApp.logger("resetRefParam");
+        this.Ref = this.EmbedRef;
+    },
+    trackEvent: function (category, action, label, nonInteraction) {
+		BookingKitApp.logger("trackEvent");
+        category = category || null;
+        action = action || null;
+        label = label || null;
+        nonInteraction = nonInteraction || null;
+        var dataEvent = {};
+        if (nonInteraction){
+            dataEvent =  {
+                nonInteraction: true
+            };
+        }
+        if (category && action) {
+            BK_ga('bkTracker.send', 'event', category, action, label, dataEvent);
+        }
+    },
+    forwardToGA: function(){
+        BK_ga.apply(BK_ga, arguments);
+    },
+    trackProducts: function () {
+		BookingKitApp.logger("trackProducts");
+        if (typeof BK_ga == "function") {
+            var page = 'widget/detail';
+            var title = 'Widget - Event Detail';
+            if (jQuery(".detailGaData").length > 0) {
+                BookingKitApp.trackProduct("ec:addProduct", jQuery(".detailGaData"));
+                BK_ga('bkTracker.ec:setAction', 'detail');
+            }
+            if (jQuery(".listGaData").length > 0) {
+                BookingKitApp.trackProduct("ec:addImpression", jQuery(".listGaData"));
+                page = BookingKitApp.isListEventByDatePage()?'widget/list_by_date':'widget/list';
+                title = BookingKitApp.isListEventByDatePage()?'Widget - Event calender list':'Widget - Event list';
+            }
+
+            BK_ga('bkTracker.send', 'pageview',{'page':page,'title':title});
+        }
+
+    },
+
+    trackProduct: function (ga_function, $dataObjs, once) {
+		BookingKitApp.logger("trackProduct");
+        once = once || false;
+        $dataObjs.each(function (index, el) {
+            var $dataObj = jQuery(el);
+            var gaData = {};
+            jQuery.each($dataObj.data(), function (prop, data) {
+                if (prop.substr(0, 2) == "ga") {
+                    gaData[prop.substr(2)] = data;
+                }
+            });
+                BK_ga("bkTracker." + ga_function, gaData);
+            if (once) {
+                //to make sure we only track once per load
+                //we'll just remove the data from the dome
+                $dataObj.remove();
+            }
+        });
+    },
+    getNavigator: function () {
+		BookingKitApp.logger("getNavigator");
+        //disabled for now
+        var ua = navigator.userAgent, tem,
+            M = ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
+        if (/trident/i.test(M[1])) {
+            tem = /\brv[ :]+(\d+)/g.exec(ua) || [];
+            return 'IE ' + (tem[1] || '');
+        }
+        if (M[1] === 'Chrome') {
+            tem = ua.match(/\bOPR\/(\d+)/);
+            if (tem != null) return 'Opera ' + tem[1];
+        }
+        M = M[2] ? [M[1], M[2]] : [navigator.appName, navigator.appVersion, '-?'];
+        if ((tem = ua.match(/version\/(\d+)/i)) != null) M.splice(1, 1, tem[1]);
+        return M.join(' ');
+    },
+    addToCart: function ($el, e) {
+		BookingKitApp.logger("addToCart");
+        var el = $el.get(0);
+        //open add cart dialog
+        var url = el.href;
+        params = {
+            url:window.location.href
+        };
+
+        if (this.template) {
+            params.t = this.template;
+        }
+
+        //track homepage
+        url = this.appendUrlParam(url, params);
+        this.lightbox(url);
+        //track action
+        BookingKitApp.trackProduct("ec:addProduct", $el);
+            BK_ga('bkTracker.ec:setAction', 'add');
+        //BK_ga('bkTracker.send', 'event', 'UX', 'click', 'add to cart');
+    },
+    checkBkRefParameter: function () {
+        try {
+            if (this.Ref || this.EmbedRef) {
+                return true;
+            }
+            var url = window.top.location.pathname + window.top.location.search;
+            var refParam = this.getQueryParameter(url, 'bkref')
+            if (refParam){
+                this.Ref = refParam;
+                this.EmbedRef = refParam;
+            }
+        } catch (e)
+        {
+            return false;
+        }
+
+    },
+    appendUrlParam: function (url, param) {
+		BookingKitApp.logger("appendUrlParam");
+        var concatenator = url.indexOf("?") >= 0 ? "&" : "?";
+        var str = [];
+        //add session id
+        param.sid = this.BKSessionId;
+        for (var p in param)
+            if (param.hasOwnProperty(p)) {
+                str.push(encodeURIComponent(p) + "=" + encodeURIComponent(param[p]));
+            }
+        //preview function for versioning, remove when not in use
+        if(this.overrideVersion){
+            str.push('bkwv='+this.overrideVersion);
+        }
+        var fullUrl = url + concatenator + str.join("&");
+        try{
+            var linker = new window.gaplugins.Linker(BK_ga.getByName('bkTracker'));
+            return linker.decorate(fullUrl);
+        }catch (e){
+        }
+        return fullUrl;
+    },
+
+    loadBkPageFallback: function (url, targetId, callback, el) {
+		BookingKitApp.logger("loadBkPageFallback");
+        var originalUrl = url;
+        var hashNav = BookingKitApp.getHashNavigation();
+        if (hashNav) {
+            //if we have a valid hashtag navigation remove models from url
+            url = url.replace(/(\?|\&)(v|e)\=([^&|\s]+)/g, "");
+            //add correct path (events || detail)
+            switch (hashNav[0]) {
+                case "e":
+                    if (hashNav[1] != ''){
+                        url = url.replace(/onPage\/([a-zA-Z]+)\//g, "onPage/detail/");
+                        this.vendor = this.vendor || this.getQueryParameter(originalUrl, 'v');
+                        if (this.vendor) {
+                            url = this.appendUrlParam(url, {'v':this.vendor});
+                        } else if(BookingKitApp.eventIdent !== null) {
+                            url = this.appendUrlParam(url, {'e':BookingKitApp.eventIdent});
+                        }
+                    }
+                    break;
+                case "v":
+                    url = url.replace(/onPage\/([a-zA-Z]+)\//g, "onPage/events/");
+                    break;
+                case "d":
+                    url = originalUrl.replace(/onPage\/([a-zA-Z]+)\//g, "onPage/eventsByDate/");
+                    hashNav[0] = 'date';
+                    break;
+                case "cal-d":
+                    url = originalUrl.replace(/onPage\/([a-zA-Z]+)\//g, "onPage/calGrid/");
+                    hashNav[0] = 'date';
+                    break;
+                case "vouchers":
+                    url = BookingKitApp.VoucherList;
+                    break;
+                case "offers":
+                    url = BookingKitApp.ListOffers ;
+                    break;
+                case "o":
+                    url = BookingKitApp.OfferUrl ;
+                    break;
+            }
+            //then add the hash navigation
+            if (BookingKitApp.eventIdent === null) {
+                var getChar = url.indexOf("?") >= 0 ? "&" : "?";
+                url += getChar + hashNav[0] + "=" + hashNav[1];
+                if (hashNav.length > 2) {
+                    if (hashNav.length > 3){
+                        if(url.match(hashNav[2]) === null){ //do not overwrite params
+                            url +=  '&' + hashNav[2] + "=" + hashNav[3];
+                        }
+                    }
+                    var functName = callback;
+                    callback = {};
+                    callback[functName] = el;
+                    callback["doClick"] = hashNav[2];
+                }
+            }
+        }
+        this.loadBkPage(url, targetId, callback, el);
+    },
+
+    loadBkPage: function (url, targetId, callback, el) {
+		BookingKitApp.logger("loadBkPage");
+        var targetId = targetId || 'bookingKitContainer';
+        var delay = 1;
+
+        if (el && !(el instanceof jQuery) && el.hasAttribute('data-loader-target')) {
+            delay = 500;
+            var target = document.getElementById(el.getAttribute('data-loader-target'));
+            target.innerHTML = '<div id="bk-starting-times-loader"><div class="loader"></div></div>';
+        }
+
+        var bkScript = document.createElement('script');
+        var concatenator = url.indexOf("?") >= 0 ? "&" : "?";
+        bkScript.type = "text/javascript";
+        bkScript.id = "script_" + targetId;
+        var params = {
+            targetId: targetId,
+            browserlang: this.browserLanguage,
+            url: encodeURIComponent(window.location.href)
+        }
+        if (this.template) {
+            params.t = this.template;
+        }
+        this.vendor = this.vendor || this.getQueryParameter(url, 'v');
+        if (this.vendor) {
+            params.v = this.vendor;
+        }
+        var src = this.appendUrlParam(url, params);
+
+        if(this.getQueryParameter(url, 'ref')) {
+            BookingKitApp.Ref = this.getQueryParameter(url, 'ref');
+        }
+
+        if (BookingKitApp.Ref) {
+            src += "&ref=" + BookingKitApp.Ref;
+        }
+
+        if (BookingKitApp.overrideAB.length > 0){
+            src += "&overrideAB=" + BookingKitApp.overrideAB.join(',');
+        }
+
+
+        if (Object.prototype.toString.call(BookingKitApp.saleParams) == "[object Object]" && Object.keys(BookingKitApp.saleParams).length > 0) {
+            Object.keys(BookingKitApp.saleParams).forEach(function (key) {
+                if (!isNaN(key)) {
+                    if (!src.indexOf('&sale_params[]=' + BookingKitApp.saleParams[key]) >= 0) {
+                        src += '&sale_params[]=' + BookingKitApp.saleParams[key];
+                    }
+                } else {
+                    src += '&sale_params[' + key + ']=' + BookingKitApp.saleParams[key];
+                }
+            });
+        }
+
+        setTimeout(function () {
+            bkScript.src = src;
+            document.body.appendChild(bkScript);
+            bkScript.onload = function () {
+                if (callback) {
+                    if (typeof callback !== "object") {
+                        var functName = callback;
+                        callback = {};
+                        callback[functName] = el;
+                    }
+                    jQuery.each(callback, function (funcName, params) {
+                        if (typeof BookingKitApp[funcName] == "function") {
+                            BookingKitApp[funcName](params);
+                        }
+                    });
+                }
+
+                //clean up after thyself
+                jQuery(this).remove();
+            };
+        }, delay);
+    },
+
+    getCallBack: function(el){
+		BookingKitApp.logger("getCallBack");
+        var callback_string = el.getAttribute("data-callback") || null;
+        var callbacks = {};
+        if(callback_string){
+            var functions = callback_string.split(",");
+            for(var i=0; i<functions.length; i++){
+                callbacks[functions[i]] = el;
+            }
+        }
+
+        return callbacks;
+    },
+
+    doClick: function (selector) {
+		BookingKitApp.logger("doClick");
+        if (jQuery(selector).length) {
+            jQuery(selector).click();
+            //remove 3-rd level from hash
+            var hashNav = this.getHashNavigation();
+            if (hashNav.length > 2) {
+                hashNav.splice(2, 1); //third key is the "doClick" key
+                this.skipHashNavigation = true;
+                newHash = "#!/" + hashNav.join("/");
+                window.location.hash = newHash;
+                this.skipHashNavigation = false;
+            }
+        }
+    },
+
+    updateIframeState: function (controller, action, version, language) {
+		BookingKitApp.logger("updateIframeState");
+        language = language || false;
+        if (language){
+            this.lang = language;
+        }
+
+        if (jQuery('#bookingKitContainer').length
+            && jQuery('#bookingKitContainer').width() < 700
+            && BookingKitApp.mobilecheck()){
+            jQuery('.bk-close-btn').hide();
+            jQuery('a[rel="closeIframe"]').hide();
+            if (action == 'success') {
+                jQuery('a[rel="closeIframe"]').show();
+            }
+        } else {
+            jQuery('a[rel="closeIframe"]').show();
+            switch (action) {
+                case "addToCart":
+                case "index":
+                case "success":
+                case "inLeadTime":
+                    jQuery('a[rel="continueShopping"]').fadeIn("fast", function () {
+                        jQuery('a[rel="continueShopping"]').attr("style", "");
+                    });
+                    break;
+                default:
+                    jQuery('a[rel="continueShopping"]').fadeOut("fast");
+                    break;
+            }
+            if (action == 'addToCart' || action == 'success' || action == 'inLeadTime') {
+                jQuery('.bk-close-btn').removeClass('detail');
+            } else if (action == 'error') {
+                jQuery('.bk-close-btn').addClass('med');
+            } else {
+                jQuery('.bk-close-btn').addClass('detail');
+            }
+        }
+
+        //update "Continue Button" text
+        jQuery('[rel=continueShopping]').html(this._t("continue shopping"));
+
+    },
+
+    redirectTo: function (url) {
+		BookingKitApp.logger("redirectTo");
+        window.location = BookingKitApp.appendUrlParam(url,[]);
+    },
+
+    addDefaultJquery: function () {
+		BookingKitApp.logger("addDefaultJquery");
+        var bkJqueryScript = document.createElement('script');
+        var head = document.getElementsByTagName("head")[0] || document.documentElement;
+        bkJqueryScript.type = "text/javascript";
+        bkJqueryScript.src = "//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js";
+        var done = false;
+
+        bkJqueryScript.onload = bkJqueryScript.onreadystatechange = function () {
+            if (!done && (!this.readyState ||
+                this.readyState === "loaded" || this.readyState === "complete")) {
+                done = true;
+                //execute on load
+                BookingKitApp.jQVersion = jQuery.fn.jquery;
+                jQuery.noConflict();
+                initBk();
+
+                // Handle memory leak in IE
+                bkJqueryScript.onload = bkJqueryScript.onreadystatechange = null;
+                if (head && bkJqueryScript.parentNode) {
+                    head.removeChild(bkJqueryScript);
+                }
+            }
+        };
+
+        head.insertBefore(bkJqueryScript, head.firstChild);
+    },
+    docIsReady: false,
+    docReady: function () {
+		BookingKitApp.logger("docReady");
+        if (BookingKitApp.docIsReady) {
+            return false;
+        }
+        BookingKitApp.docIsReady = true;
+        if (!window.jQuery) {
+            window.bkBreakEndlessLoop = -5;
+            if ((typeof window.Muse !== "undefined" || typeof window.requirejs !== "undefined")) { //quick and ugly for requirejs
+                //wait for requirejs and for Muse builder
+                var jQueryLoaded = setInterval(function () {
+                    window.bkBreakEndlessLoop++;
+                    if (typeof window.jQuery != "undefined") {
+                        clearInterval(jQueryLoaded);
+                        //execute on load
+                        BookingKitApp.jQVersion = jQuery.fn.jquery;
+                        if(!BookingKitApp.hasRequiredOfjQuery()) {
+                            BookingKitApp.addDefaultJquery();
+                        }else{
+                            initBk();
+                        }
+                    } else if (window.bkBreakEndlessLoop >= 0) {
+                        clearInterval(jQueryLoaded);
+                        BookingKitApp.addDefaultJquery();
+                    }
+                }, 500);
+            } else { //load our own
+                BookingKitApp.addDefaultJquery();
+            }
+        } else {
+            jQuery(document).ready(function () {
+                BookingKitApp.jQVersion = jQuery.fn.jquery;
+                if(!BookingKitApp.hasRequiredOfjQuery()) {
+                    BookingKitApp.addDefaultJquery();
+                }else{
+                    initBk();
+                }
+            });
+        }
+    },
+    readyStateChange: function () {
+		BookingKitApp.logger("readyStateChange");
+        if (document.readyState === "complete") {
+            this.docReady();
+        }
+    },
+    internalLinkClick: function (event, element) {
+		BookingKitApp.logger("internalLinkClick");
+        event.preventDefault();
+        var callback = BookingKitApp.getCallBack(element);
+        BookingKitApp.loadBkPage(element.getAttribute("data-href"), element.getAttribute("data-targetId"), callback, element);
+        return false;
+    },
+    cartLinkClick: function (event, element) {
+		BookingKitApp.logger("cartLinkClick");
+        var $element = jQuery(element);
+        var action = BookingKitApp.getDataAttribute("action", $element);
+        if (action && typeof(BookingKitApp[action]) == "function" && BookingKitApp.lbLinkTarget != 'blank') {
+            event.preventDefault();
+            BookingKitApp[action]($element, event);
+            return false;
+        }
+    },
+
+    hasRequiredOfjQuery: function(){
+        return BookingKitApp.hasMinJQueryVersion() && BookingKitApp.checkRequiredOfjQuery();
+    },
+
+    checkRequiredOfjQuery : function() {
+        var $body = jQuery("body");
+        if($body.length == 0){
+            return false;
+        }
+        for(var i = 0; i < BookingKitApp.requiredJqueryFunctions.length; i++) {
+
+            if( typeof $body[BookingKitApp.requiredJqueryFunctions[i]] !== 'function'){
+                return false;
+            }
+        }
+        return true;
+    },
+
+    hasMinJQueryVersion: function () {
+        if(typeof BookingKitApp.jQVersion != 'string'){
+            //we don't know, safer to load
+            return false;
+        }
+
+        var curParts = BookingKitApp.jQVersion.split('.');
+        var minParts = BookingKitApp.minJqVersion.split('.');
+
+
+        for (var i = 0; i < minParts.length; ++i) {
+            minParts[i] = parseInt(minParts[i]);
+            curParts[i] = parseInt(curParts[i]);
+            if (curParts.length == i) {
+                return true;
+            }
+
+            if (minParts[i] == curParts[i]) {
+                continue;
+            }
+            else if (minParts[i] < curParts[i]) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+
+        return true;
+    },
+    attachListeners: function (scope) {
+		BookingKitApp.logger("attachListeners");
+        scope = scope || '#bookingKitContainer';
+        var $scope = jQuery(scope);
+
+        jQuery($scope).on("click", 'a[rel="bkIntLink"]', function (e) {
+            e.stopImmediatePropagation();
+            return BookingKitApp.internalLinkClick(e, this);
+        });
+        jQuery($scope).on("click", 'a[rel="bkLbLink"]', function (e) {
+            return BookingKitApp.cartLinkClick(e, this);
+        });
+        jQuery($scope).on("click", '.bk-scroll-to-cal', function (e) {
+            bkScrollToCal();
+            e.stopImmediatePropagation();
+
+            return false;
+        });
+        jQuery($scope).on("click", '.bk-scroll-to-choose-date',function (e) {
+            e.preventDefault();
+            bkScrollToChooseDate();
+            return false;
+        });
+
+        // Create IE + others compatible event handler
+        var messageEvent = (window.addEventListener ? "addEventListener" : "attachEvent") == "attachEvent" ? "onmessage" : "message";
+
+        // Listen to message from child window
+        jQuery(window).on(messageEvent, function (event) {
+            if (typeof event.originalEvent != 'undefined'
+                && typeof event.originalEvent.data != 'undefined'
+                && typeof event.originalEvent.data.action != 'undefined'
+                && typeof BookingKitApp[event.originalEvent.data.action] != 'undefined') {
+                var params = event.originalEvent.data.params != 'undefined' ? event.originalEvent.data.params : [];
+                BookingKitApp[event.originalEvent.data.action].apply(BookingKitApp, params);
+            }
+        });
+        jQuery($scope).on("mousedown", 'a', function (e) {
+            var link = jQuery(e.target).closest('a').get(0);
+            if(!link.href){
+                return
+            }
+            if(link.href.slice(0, BookingKitApp.CheckoutDomain.length) !== BookingKitApp.CheckoutDomain){
+                return;
+            }
+            link.href = BookingKitApp.appendUrlParam(link.href,[]);
+        });
+    },
+    getScrollParent: function (element, includeHidden, includeAuto) {
+		BookingKitApp.logger("getScrollParent");
+        var style = getComputedStyle(element);
+        includeAuto = includeAuto || false;
+        var excludeStaticParent = style.position === "absolute";
+        var overflowRegex = includeHidden ? /(auto|scroll|hidden)/ :  (includeAuto ? /(auto|scroll)/ : /scroll/); // /(auto|scroll)/;
+        if (style.position === "fixed") return window;
+        for (var parent = element; (parent = parent.parentElement);) {
+            if(parent.tagName.toLocaleUpperCase() == "BODY"){
+                return window;
+            }
+            style = getComputedStyle(parent);
+            if (excludeStaticParent && style.position === "static") {
+                continue;
+            }
+            if (overflowRegex.test(style.overflow + style.overflowY + style.overflowX)){
+                return parent;
+            }
+        }
+
+        return window;
+    },
+    openLanguageDialog: function () {
+		BookingKitApp.logger("openLanguageDialog");
+        jQuery('.bk-header-languages').toggle();
+    },
+    closeMenus: function (e) {
+		BookingKitApp.logger("closeMenus");
+        var container_calendar = jQuery('.bk-header-calendar-container');
+        var validate = true;
+        if (container_calendar.length && jQuery(e.target).closest('.bk-header-calendar-container').length === 0)
+        {
+            container_calendar.hide();
+            container_calendar.html('');
+        } else {
+            //click on the calendandar
+            validate = false;
+        }
+
+        var container_languages = jQuery('.bk-header-languages');
+        if (container_languages.length && jQuery(e.target).closest('.bk-header-languages').length === 0)
+        {
+            container_languages.hide();
+        }
+
+        var container_dates= jQuery('.bk-detail-bookingdates');
+        if (container_dates.length && jQuery(e.target).closest('.bk-detail-bookingdates').length === 0)
+        {
+            container_dates.hide();
+        } else {
+            //click on the list of dates
+            validate = false;
+        }
+
+        if (validate){
+            BookingKitApp.validateFormWidget();
+        }
+
+    },
+
+    resizeDates: function(){
+		BookingKitApp.logger("resizeDates");
+        jQuery('.bk-detail-bookingdates').each(function () {
+            $eventDateContainer = jQuery(this);
+            if ($eventDateContainer.height()){
+                $eventDateContainer.css('max-height','');
+                $eventDateContainer.removeClass('scrollable');
+                var top = $eventDateContainer.parent().position().top + $eventDateContainer.parent().height();
+                var margin = 60;
+                var footer_height = jQuery('#bkCartBar').height();
+                var height = parseInt(jQuery(window).height() - top - footer_height - margin);
+                height = height > 250 ? height : 250;
+                var myHeight = $eventDateContainer.height();
+                if (myHeight >= height) {
+                    $eventDateContainer.css('max-height' , height + 'px');
+                    $eventDateContainer.addClass('scrollable');
+                } else {
+                    $eventDateContainer.css('max-height','auto');
+                    $eventDateContainer.removeClass('scrollable');
+                }
+            }
+        });
+    },
+    selectDateDetail : function (e){
+		BookingKitApp.logger("selectDateDetail");
+        this.closeMenus(e);
+        this.resizeDates();
+        var select_time = false;
+        jQuery('.on-select-event-date-show').hide();
+        if (typeof  BookingKitApp.getDataAttribute('day-text', jQuery(e))  !== 'undefined'){
+            // coming from the calendar
+            var day_text = e.getAttribute('data-day-text');
+            var day_date = e.getAttribute('data-date');
+            var day_url = e.getAttribute('data-href');
+            jQuery('[name=event_date]').val(day_url);
+            jQuery('.bk-detail-choose-date-title span.text').html(day_text);
+            jQuery('[name=date]').val(day_date);
+            BookingKitApp.resetButton('.bk-detail-pick-time-slot-title');
+            $container_timeslots = jQuery('#' + e.getAttribute('data-targetid'));
+            if ($container_timeslots.find('#bookingKitContainer_inner:not(.bk-flexible-duration) .bk-detail-bookingdates-item').length == 1){
+                select_time = true;
+            }
+        }
+
+        jQuery('.on-select-date-show').show();
+        jQuery('.bk-detail-choose-date-title').addClass("ok");
+        jQuery('.bk-detail-choose-date-title').removeClass("wrong");
+        jQuery('.bk-detail-pick-time-slot-title').addClass('on');
+
+        if (select_time) {
+            $container_timeslots.find('.bk-detail-bookingdates-item-active').click();
+        } else {
+            jQuery('.bk-detail-bookingdates').show();
+        }
+        jQuery('.bk-date-btn').each(function () {
+            var btn = jQuery(this);
+            var href = BookingKitApp.getDataAttribute('href', btn);
+            if (typeof  href !== 'undefined' && jQuery('[name=date]').val() != '') {
+                var d = new Date(jQuery('[name=date]').val());
+                if (!isNaN(d.getTime())) {
+                    var params = {'date': jQuery('[name=date]').val(), 'month': d.getMonth() + 1, 'year' : d.getFullYear()};
+                    href = BookingKitApp.appendUrlParam(href, params);
+                    btn.data('href', href);
+                    btn.attr('data-href', href);
+                }
+            }
+        });
+        if (jQuery('.bk-detail-bookingdates .selected').length) {
+            jQuery('[name=event_date_id]').val(BookingKitApp.getDataAttribute('event-date-id', jQuery('.bk-detail-bookingdates .selected')));
+        }
+    },
+    displayCalendar: function (e){
+		BookingKitApp.logger("displayCalendar");
+        jQuery('.bk-detail-content .bk-date-btn').addClass('off');
+        jQuery('.bk-header-calendar-container').show();
+        jQuery('.bk-detail-choose-date-title').addClass('on');
+        jQuery('.bk-detail-bookingdates').hide();
+
+        var $document = jQuery("html, body");
+        var currentScroll = $document.scrollTop()
+        var viewport = jQuery(window).height() + currentScroll
+        var end_calendar = jQuery('.bk-header-calendar:visible').offset().top + jQuery('.bk-header-calendar:visible').outerHeight();
+        var newScroll = null;
+        if(BookingKitApp.pos_top && BookingKitApp.pos_top < currentScroll){
+            newScroll = BookingKitApp.pos_top
+        }
+        if( end_calendar > viewport ){
+            var space = 20;
+            newScroll = $document.scrollTop() + (end_calendar - viewport) + space;
+        }
+        if(newScroll !== null){
+            $document.stop().animate({scrollTop:newScroll},'fast');
+        }
+
+    },
+    selectEventDateDetail : function (obj){
+		BookingKitApp.logger("selectEventDateDetail");
+        var obj = jQuery(obj);
+        var display_free_seats = BookingKitApp.getDataAttribute('display-free-seats', obj) == 1;
+        var event_date_id = BookingKitApp.getDataAttribute('event-date-id', obj);
+        var event_text = BookingKitApp.getDataAttribute('event-text', obj);
+        var event_class = BookingKitApp.getDataAttribute('event-class', obj);
+        var event_free = BookingKitApp.getDataAttribute('event-free', obj);
+
+        var alert_icon = BookingKitApp.getDataAttribute('alert-icon', obj);
+        var alert_text = BookingKitApp.getDataAttribute('alert-text', obj);
+
+        if (!obj.parents('.bk-flexible-duration').length) {
+            this.closeMenus(obj);
+        }
+        jQuery('.on-select-event-date-show').show();
+        jQuery('.bk-detail-pick-time-slot-title span.text').html(event_text);
+        jQuery('.bk-detail-pick-time-slot-title').addClass("ok");
+        jQuery('.bk-detail-pick-time-slot-title').removeClass("wrong");
+
+        if (alert_icon != ''  && alert_text != ""){
+            jQuery('.bk-detail-alert-checkout .icon').attr('src', alert_icon);
+            jQuery('.bk-detail-alert-checkout .text').text(alert_text);
+            jQuery('.bk-detail-alert-checkout').show();
+        } else {
+            jQuery('.bk-detail-alert-checkout .icon').attr('src', '');
+            jQuery('.bk-detail-alert-checkout .text').text('');
+            jQuery('.bk-detail-alert-checkout').hide();
+        }
+        jQuery('[name=event_date_id]').val(event_date_id);
+
+        var inLeadTime = BookingKitApp.getDataAttribute('in-lead-time', obj);
+        var noOnlinePayment = BookingKitApp.getDataAttribute('no-online-payment', obj);
+        jQuery('[name=in_lead_time]').val(inLeadTime);
+        jQuery('.bk-detail-go-checkout').each(function (index){
+            var $btn = jQuery(this);
+            var href = BookingKitApp.getDataAttribute("base-href", $btn);
+            $btn.data('ident',event_date_id);
+            href = href.replace('EVENT_DATE_ID', event_date_id);
+            if (inLeadTime){
+                href = href.replace('addToCart', 'inLeadTime');
+            }
+            if (noOnlinePayment){
+                href = href.replace(/addToCart|inLeadTime/i, 'noOnlinePayment');
+            }
+            $btn.attr("href", href);
+        });
+        BookingKitApp.trackEvent('widget.v2', 'selectEventDateDetail');
+        BookingKitApp.validateFormWidget();
+    },
+    resetButton : function (id_obj){
+		BookingKitApp.logger("resetButton");
+        jQuery(id_obj + ' span.text').html(BookingKitApp.getDataAttribute('default-text', jQuery(id_obj)));
+        jQuery('[name=' + BookingKitApp.getDataAttribute('input-name', jQuery(id_obj)) + ']').val('');
+        jQuery(id_obj).removeClass('ok');
+        jQuery(id_obj).removeClass('wrong');
+    },
+    reloadEventDates : function (element){
+		BookingKitApp.logger("reloadEventDates");
+        var url = jQuery('[name=event_date]').val();
+        var target = jQuery(element).next('.bk-detail-bookingdates').attr('id');
+        var callback = 'selectDateDetail';
+        if (url != ''){
+            BookingKitApp.loadBkPage(url, target, callback, element);
+        }
+    },
+    validateFormWidget : function (){
+		BookingKitApp.logger("validateFormWidget");
+        /**** validation widget ****/
+        var bt_make_a_booking = jQuery('.bk-detail-choose-date-title');
+        var bt_pick_a_date = jQuery('.bk-detail-pick-time-slot-title');
+        var event_date_ok  = jQuery('[name=event_date]').val() != '';
+        var event_date_id_ok  = jQuery('[name=event_date_id]').val() != '';
+        var error = false;
+
+        if (bt_make_a_booking.hasClass('on') && !event_date_ok){
+            bt_make_a_booking.addClass("wrong");
+            jQuery('.bk-detail-error-date').show();
+            error = true;
+        }
+
+        if (bt_pick_a_date.hasClass('on') && !event_date_id_ok){
+            bt_pick_a_date.addClass("wrong");
+            jQuery('.bk-detail-error-date').show();
+            error = true;
+        }
+
+        if (!error){
+            jQuery('.bk-detail-error-date').hide();
+        }
+    },
+    afterChangeLanguage : function (){
+		BookingKitApp.logger("afterChangeLanguage");
+        BookingKitApp.setSelectedLanguage();
+        //check if the description is overflowed
+        if (jQuery('.bk-detail-desc-compress').length && jQuery('.bk-detail-desc-compress').get(0).scrollHeight <=  jQuery('.bk-detail-desc-compress').innerHeight()) {
+            jQuery('.bk-detail-desc').removeClass('bk-detail-desc-compress');
+            jQuery('.bk-detail-desc-read-more').hide();
+        }
+        jQuery('.bk-header-languages').hide();
+        if ( jQuery('.calendar-day-number a').length ) {
+            jQuery('.calendar-day-number a').get(0).click();
+        }
+        BookingKitApp.initExtWidgets();
+    },
+    parseUrl: function(url){
+		BookingKitApp.logger("parseUrl");
+        var urlParams = {};
+        url.replace(
+            new RegExp("([^?=&]+)(=([^&]*))?", "g"),
+            function($0, $1, $2, $3) {
+                urlParams[$1] = $3;
+            }
+        );
+
+        return urlParams;
+    },
+    getQueryParameter: function(url, param){
+		BookingKitApp.logger("getQueryParameter");
+        var parsedUrl = this.parseUrl(url);
+        if (typeof parsedUrl[param] !== 'undefined') {
+            return parsedUrl[param];
+        } else {
+            return false;
+        }
+    },
+    initExtWidgets: function () {
+		BookingKitApp.logger("initExtWidgets");
+		BookingKitApp.bk_loadDates();
+        jQuery('.bk_ext_widget.bk_ew_loading').each(function (index,el) {
+            var $widget_ct = jQuery(el);
+            var initializer = $widget_ct.data('initializer');
+            if(typeof initializer != 'undefined'){
+                BookingKitApp[initializer]($widget_ct);
+            }
+        });
+    },
+    initTripadvisorLarge: function ($widget_ct) {
+		BookingKitApp.logger("initTripadvisorLarge");
+        var url = 'https://www.tripadvisor.com/WidgetEmbed-selfserveprop?writereviewlink=false&rating=false&border=false&uniq=_bkTaLg&iswide=true&popIdx=false&nreviews=4&display_version=2';
+        url += '&locationId='+$widget_ct.data('locationid');
+        url += '&lang='+BookingKitApp.lang;
+        var reviewScript = document.createElement('script');
+        reviewScript.type = "text/javascript";
+        reviewScript.src = url;
+        target = window.document.body;
+        target.appendChild(reviewScript);
+        reviewScript.onload = function(){
+            window.taValidate();
+            $widget_ct.removeClass('bk_ew_loading');
+        };
+    },
+    initTripadvisorSmall: function ($widget_ct) {
+		BookingKitApp.logger("initTripadvisorSmall");
+        var url = 'https://www.tripadvisor.com/WidgetEmbed-socialButtonBubbles?color=white&size=rect&display_version=2&uniq=817&lang=en_US';
+        url += '&locationId='+$widget_ct.data('locationid');
+        url += '&lang='+BookingKitApp.lang;
+        var reviewScript = document.createElement('script');
+        reviewScript.type = "text/javascript";
+        reviewScript.src = url;
+        target = window.document.body;
+        target.appendChild(reviewScript);
+        reviewScript.onload = function(){
+            window.taValidate();
+            $widget_ct.removeClass('bk_ew_loading');
+        };
+    },
+    initTripadvisorSmallRepeat: function ($widget_ct) {
+		BookingKitApp.logger("initTripadvisorSmallRepeat");
+        var url = 'https://www.tripadvisor.com/WidgetEmbed-socialButtonBubbles?color=white&size=rect&display_version=2&uniq=817&lang=en_US';
+        url += '&locationId='+$widget_ct.data('locationid');
+        url += '&lang='+BookingKitApp.lang;
+        var reviewScript = document.createElement('script');
+        reviewScript.type = "text/javascript";
+        reviewScript.src = url;
+        target = window.document.body;
+        target.appendChild(reviewScript);
+        reviewScript.onload = function(){
+            window.taValidate();
+            jQuery('.bk-events-item').each(function (index, el) {
+                $widget = $widget_ct.clone();
+                $widget.removeClass('bk_ew_loading');
+                var $event_location = jQuery(this).find('.bk_list_location');
+                $event_location.append($widget);
+            });
+            $widget_ct.remove();
+        }
+    },
+    setSelectedLanguage: function () {
+        var selectedLang = jQuery('.bk-languages-container').data('current-language');
+
+        if (selectedLang != this.lang) {
+            this.setLanguage(selectedLang);
+        }
+    },
+    mobilecheck: function() {
+        var check = false;
+        (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
+        return check;
+    },
+    addBgScrollLock: function () {
+        if(!jQuery('#bkBgScrollPrevent').length){
+            jQuery('body').wrapInner('<div id="bkBgScrollPrevent"></div>');
+            jQuery("#bkBgScrollPrevent").wrapInner('<div id="bkBgKeepPos"></div>');
+        }
+    }
+}
+//add event listeners for document loaded
+// to be sure fire twice on dom ready and window ready
+if(document.readyState == "complete"){
+    BookingKitApp.docReady();
+}else if (document.addEventListener) {
+    document.addEventListener("DOMContentLoaded", BookingKitApp.docReady, false);
+    window.addEventListener("load", BookingKitApp.docReady, false);
+} else {
+    // must be IE 8
+    document.attachEvent("onreadystatechange", BookingKitApp.readyStateChange);
+    window.attachEvent("onload", BookingKitApp.docReady);
+}
+
+
+function bkSlideImage(direction) {
+    var $slider = jQuery('.bk-image-slider');
+    var count = $slider.children('li').length;
+    if(count==1) return;
+    var $active = $slider.children('li.bk-active-img');
+    if($active.length==0) {
+        $active = $slider.children('li').first();
+        $active.addClass('bk-active-img');
+    }
+    if(direction=='next') {
+        if($slider.children('li').index($active)<count-1) {
+            var $load = $active.next('li');
+        } else {
+            var $load = $slider.children('li').first();
+        }
+    } else {
+        if($slider.children('li').index($active)==0) {
+            var $load = $slider.children('li').last();
+        } else {
+            var $load = $active.prev('li');
+        }
+    }
+    $slider.children('li').removeClass('bk-active-img');
+    $load.addClass('bk-active-img');
+    jQuery('.bk-detail-image img').attr('src',$load.find('img').attr('src'));
+    return false;
+}
+
+function bkSlideImageNumber(index){
+    var $slider = jQuery('.bk-image-slider');
+    var $load = $slider.find('li').eq(index);
+    $slider.children('li').removeClass('bk-active-img');
+    $load.addClass('bk-active-img');
+    jQuery('.bk-detail-image img').attr('src',$load.find('img').attr('src'));
+    return false;
+}
+
+function bkScrollToCal() {
+    var el = document.getElementById('bk-detail-cal');
+    bkScrollToElement(el, false, true);
+    return false;
+}
+
+function bkScrollToElement(pageElement, includeHidden, includeAuto) {
+    var positionX = 0,
+        positionY = 0,
+        marginTop = 0;
+    includeAuto = includeAuto || false;
+    includeHidden = includeHidden || false;
+    var scrollParent = BookingKitApp.getScrollParent(pageElement, includeHidden, includeAuto);
+    var pageElementMargin = pageElement;
+
+    // offsetTop doesn't take in account the margin and the padding, so to calculate the positionY
+    // it has to count the margin and padding
+    while(pageElementMargin != null && pageElementMargin != document && jQuery( pageElementMargin ).length ){
+        marginTop += parseInt( jQuery( pageElementMargin ).css( "margin-top" ) ) ;
+        marginTop += parseInt( jQuery( pageElementMargin ).css( "padding-top" ) ) ;
+        if (jQuery(pageElementMargin).parent()){
+            pageElementMargin = jQuery(pageElementMargin).parent().get(0)
+        } else {
+            pageElementMargin = null;
+        }
+    }
+    while(pageElement != null){
+        positionX += pageElement.offsetLeft;
+        positionY += pageElement.offsetTop;
+        pageElement = pageElement.offsetParent;
+        if(scrollParent!=window){
+            var delta = scrollParent.offsetTop || 0;
+            scrollParent.scrollTop = positionY - delta;
+        }else{
+            window.scrollTo(positionX, positionY - marginTop);
+        }
+    }
+}
+
+//using jQuery and animation
+function bkScrollToChooseDate() {
+    target = jQuery('#bk-detail-cal .bk-choose-date');
+    bkScrollTo(target);
+}
+
+function bkScrollTo(target, speed) {
+    speed = speed || 'fast';
+
+    jQuery('html, body').animate({
+        scrollTop: target.offset().top
+    }, speed);
+}
+
+
+function initBk() {
+
+    BookingKitApp.beforeInit();
+    BookingKitApp.loadCssUrl(window.BKVars.cssLink);
+    if (window.BKVars.widgetCss !== ''){
+        BookingKitApp.loadCssUrl(window.BKVars.widgetCss);
+    }
+    if (BookingKitApp.CSS_AB_version != '' && BookingKitApp.CSS_AB_version.length){
+        BookingKitApp.CSS_AB_version.forEach(function(filePath){
+            BookingKitApp.loadCssUrl(filePath);
+        });
+    }
+
+    var bkWidth = jQuery('#bookingKitContainer').width();
+
+    // jQuery.fn.extend({
+    //     getDataAttribute: function(key){
+	// 	BookingKitApp.logger("getDataAttribute");
+    //         return jQuery(this).data(key) || jQuery(this).attr('data-'+key);
+    //     }
+    // });
+
+    var mobileLimit = 550;
+
+    switch (true){
+        case bkWidth < mobileLimit && !BookingKitApp.mobilecheck():
+            jQuery('#bookingKitContainer').addClass("bk-portrait")
+            break;
+        case bkWidth >= mobileLimit:
+            jQuery('#bookingKitContainer').removeClass("bk-portrait")
+            break;
+    }
+
+    switch (true){
+        case bkWidth < mobileLimit:
+            jQuery('#bookingKitContainer').removeClass("bk-tablet");
+            break;
+        case bkWidth < 850:
+            jQuery('#bookingKitContainer').addClass("bk-tablet");
+            break;
+    }
+    jQuery(function() {
+        BookingKitApp.attachListeners('#bookingKitContainer');
+        BookingKitApp.afterInit();
+    });
+
+    if(jQuery.isFunction(jQuery.fn.on)) {
+        jQuery(window).on('load', function(){
+            BookingKitApp.addBgScrollLock();
+        });
+    } else {
+        jQuery(window).load(function(){
+            BookingKitApp.addBgScrollLock();
+        });
+    }
+
+    //hash navigation
+    if (!('onhashchange' in window)) {
+        var oldHref = location.href;
+        setInterval(function() {
+            var newHref = location.href;
+            if (oldHref !== newHref) {
+                var _oldHref = oldHref;
+                oldHref = newHref;
+                BookingKitApp.hashChange.call(window, {
+                    'type': 'hashchange',
+                    'newURL': newHref,
+                    'oldURL': _oldHref
+                });
+            }
+        }, 100);
+    } else if (window.addEventListener) {
+        window.addEventListener("hashchange", BookingKitApp.hashChange, false);
+    }
+    else if (window.attachEvent) {
+        window.attachEvent("onhashchange", BookingKitApp.hashChange);
+    }
+    var widget_dimension = (BookingKitApp.Version == 'v.2')? 'Widget v.2' : 'Widget v.1';
+        BK_ga('bkTracker.set', 'dimension1', widget_dimension);
+    }
+function bkInitCalWrapper() {
+    jQuery('.bk-cal-link').click(function() {
+        if(bkCalScript) {
+            bkCalScript.remove();
+        }
+        var bkCalScript = document.createElement('script');
+        bkCalScript.type = "text/javascript";
+        bkCalScript.src = "//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js";
+        document.getElementsByTagName('head')[0].appendChild(bkScript);
+        return false;
+    });
+}
+
+    ;
+    //Google Analytics - Bookingkit
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','BK_ga');
+
+    BK_ga('create', 'UA-49045445-3', 'auto', {'name': 'bkTracker'
+    ,'allowLinker': true
+    });
+    BK_ga('bkTracker.require', 'ec');
+    BK_ga('bkTracker.require', 'linker');
+    BK_ga('bkTracker.set', '&cu', 'EUR');
+    BK_ga('bkTracker.linker:autoLink', ['https://eu5.bookingkit.de'] );
+    BK_ga('bkTracker.set', 'anonymizeIp', true);
+    window.BKVars = {
+    "cssLink" : "https://eu5.bookingkit.de/css/widget_list.css?1689079119",
+    "legacyCss": "https://eu5.bookingkit.de/css/onPage/legacy_support.css?1689079119",
+    "widgetCss": ""
+    };
+    //preview function for versioning, remove when not in use
+    try{
+    var version = window.location.href.match(/bkwv=(v.\d)/);
+    if(version && version[1] == "v.2"){
+    window.BKVars = {
+    "cssLink" : "https://eu5.bookingkit.de/css/widget_list.css?96"
+    };
+    BookingKitApp.overrideVersion = "v.2";
+    }
+    }catch (e) {
+    console.log(e)
+    }
+    //end preview
+
+    var css = '#bookingKitContainer { --alpha-color: #e73e1e;} .alphaColor{color: #e73e1e !important} .alphaBg{background-color: #e73e1e!important; fill: #e73e1e!important;} .alphaColorStroke{stroke: #e73e1e!important;} .alphaBorder{border-color: #e73e1e!important;} .bk-checkout-steps li.bk-checkout-step-active:before, .bk-checkout-steps li.bk-checkout-step-done:before{ border-color: #e73e1e;} .bk-payments2 li.active > label:before, .bk-payments2 li.active > label:after, .bk-payments2 .paymentOptions li.active > label:before, .bk-payments2 .paymentOptions li.active > label:after {border-color: #e73e1e;} #bookingKitContainer .calendar-current-day a span { border-bottom-color: #e73e1e;} #bookingKitContainer .bk-detail-highlight, #bookingKitContainer .bk-detail-content .bk-detail-choose-date-title, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title { border-top-color: #e73e1e !important; } #PaylineForm #submitButton{background-color: #e73e1e !important; } .success .lSControl { background-color: #e73e1e!important; border-color: #e73e1e!important;} #bookingKitContainer .bk-detail-content.sticky .bk-date-btn.off { background-color: #e73e1e !important; } #bookingKitContainer { --alpha-color: rgb(231, 62, 30);} .alphaColor{color: rgb(231, 62, 30) !important} .alphaBg{background-color: rgb(231, 62, 30)!important; fill: rgb(231, 62, 30)!important;} .alphaColorStroke{stroke: rgb(231, 62, 30)!important;} .alphaBorder{border-color: rgb(231, 62, 30)!important;} .bk-checkout-steps li.bk-checkout-step-active:before, .bk-checkout-steps li.bk-checkout-step-done:before{ border-color: rgb(231, 62, 30);} .bk-payments2 li.active > label:before, .bk-payments2 li.active > label:after, .bk-payments2 .paymentOptions li.active > label:before, .bk-payments2 .paymentOptions li.active > label:after {border-color: rgb(231, 62, 30);} #bookingKitContainer .calendar-current-day a span { border-bottom-color: rgb(231, 62, 30);} #bookingKitContainer .bk-detail-highlight, #bookingKitContainer .bk-detail-content .bk-detail-choose-date-title, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title { border-top-color: rgb(231, 62, 30) !important; } #PaylineForm #submitButton{background-color: rgb(231, 62, 30) !important; } .success .lSControl { background-color: rgb(231, 62, 30)!important; border-color: rgb(231, 62, 30)!important;} #bookingKitContainer .bk-detail-content.sticky .bk-date-btn.off { background-color: rgb(231, 62, 30) !important; } .breakArea .imgCt .alphaBg{ background-color: rgba(231,62,30,0.6) !important;}.betaColor{color: #63ac37 !important; } .betaColorFill{ fill: #63ac37 !important; } .betaBg{background-color: #63ac37 !important;} .betaBorder{border-color: #63ac37 !important;} #bookingKitContainer .calendar-day-number.bk-active-day {border-color: #63ac37 !important;} #bookingKitContainer .calendar-selected-day a span { border-bottom-color: #63ac37; } #bookingKitContainer .bk-detail-images-slider li.bk-active-img div{ border-top-color: #63ac37 !important; } .betaColor{color: rgb(99, 172, 55) !important; } .betaColorFill{ fill: rgb(99, 172, 55) !important; } .betaBg{background-color: rgb(99, 172, 55) !important;} .betaBorder{border-color: rgb(99, 172, 55) !important;} #bookingKitContainer .calendar-day-number.bk-active-day {border-color: rgb(99, 172, 55) !important;} #bookingKitContainer .calendar-selected-day a span { border-bottom-color: rgb(99, 172, 55); } #bookingKitContainer .bk-detail-images-slider li.bk-active-img div{ border-top-color: rgb(99, 172, 55) !important; } .headColor { color: #000000 !important;} .strokeHeadColor { stroke: #000000 !important; } .fillHeadColor { fill: #000000 !important; } #bookingKitContainer .bk-grid-a.bk-ev-grid-head .calendar-row td , #bookingKitContainer .bk-grid-a.bk-ev-grid-head .bk-cal-slider, #bookingKitContainer .bk-grid-a.bk-ev-grid-head .calendar-row td a { color: #000000 !important;} .headColor { color: rgb(0, 0, 0) !important;} .strokeHeadColor { stroke: rgb(0, 0, 0) !important; } .fillHeadColor { fill: rgb(0, 0, 0) !important; } #bookingKitContainer .bk-grid-a.bk-ev-grid-head .calendar-row td , #bookingKitContainer .bk-grid-a.bk-ev-grid-head .bk-cal-slider, #bookingKitContainer .bk-grid-a.bk-ev-grid-head .calendar-row td a { color: rgb(0, 0, 0) !important;} #bookingKitContainer .bk-detail-bookingdates, #bookingKitContainer .bk-header-calendar{ box-shadow: 0 2px 14px 0 rgba(0,0,0, 0.1) !important; } #bookingKitContainer .bk-grid-a.bk-ev-grid-head .calendar-day-number { color: rgba(0,0,0, 0.2) !important; } #bookingKitContainer .bk-detail-advantages-text { color: rgba(0,0,0, 0.8) !important; }#bookingKitContainer { --primary-button-color: #ffffff;} .primaryButtonColor { color: #ffffff !important;} .strokePrimaryText { stroke: #ffffff !important; } .fillPrimaryText { fill: #ffffff !important; } .primaryButtonColorBg { background-color: #ffffff !important; } .primaryButtonColorBorder { border-color: #ffffff !important; } #bookingKitContainer .bk-date-btn .bk-btn-icon { stroke: #ffffff ; } .bk-blue-info-time { border-bottom-color: #ffffff !important; } .success .lSControl .fa { color: #ffffff!important; } #bookingKitContainer .bk-detail-content.sticky .bk-date-btn.off span { color: #ffffff!important; } #bookingKitContainer { --primary-button-color: rgb(255, 255, 255);} .primaryButtonColor { color: rgb(255, 255, 255) !important;} .strokePrimaryText { stroke: rgb(255, 255, 255) !important; } .fillPrimaryText { fill: rgb(255, 255, 255) !important; } .primaryButtonColorBg { background-color: rgb(255, 255, 255) !important; } .primaryButtonColorBorder { border-color: rgb(255, 255, 255) !important; } #bookingKitContainer .bk-date-btn .bk-btn-icon { stroke: rgb(255, 255, 255) ; } .bk-blue-info-time { border-bottom-color: rgb(255, 255, 255) !important; } .success .lSControl .fa { color: rgb(255, 255, 255)!important; } #bookingKitContainer .bk-detail-content.sticky .bk-date-btn.off span { color: rgb(255, 255, 255)!important; } #bookingKitContainer .bk-detail-desc, #bookingKitContainer .bk-events-desc-small, #bookingKitContainer .bk-detail-price-step, #bookingKitContainer .bk-detail-map-location, #bookingKitContainer .bk-detail-location, #bookingKitContainer .bk-detail-desc a, #bookingKitContainer .bk-events-desc-big a, #bookingKitContainer .bk-detail-price-step, #bookingKitContainer .bk-date-btn.off:not(.btn_go_up) span, #bookingKitContainer .textColor {color: #000000 } #bookingKitContainer .fillTextColor { fill: #000000 !important; } #bookingKitContainer .strokeTextColor { stroke: #000000 !important; } #bookingKitContainer .bk-grid-a.bk-ev-grid-head .bk-cal-slider { border-bottom-color : #000000 !important; } #bookingKitContainer .bk-terms-checkbox:not(:checked) + label:before { border: 2px solid #000000; } #bookingKitContainer .bk-detail-desc, #bookingKitContainer .bk-events-desc-small, #bookingKitContainer .bk-detail-price-step, #bookingKitContainer .bk-detail-map-location, #bookingKitContainer .bk-detail-location, #bookingKitContainer .bk-detail-desc a, #bookingKitContainer .bk-events-desc-big a, #bookingKitContainer .bk-detail-price-step, #bookingKitContainer .bk-date-btn.off:not(.btn_go_up) span, #bookingKitContainer .textColor {color: rgb(0, 0, 0) } #bookingKitContainer .fillTextColor { fill: rgb(0, 0, 0) !important; } #bookingKitContainer .strokeTextColor { stroke: rgb(0, 0, 0) !important; } #bookingKitContainer .bk-grid-a.bk-ev-grid-head .bk-cal-slider { border-bottom-color : rgb(0, 0, 0) !important; } #bookingKitContainer .bk-terms-checkbox:not(:checked) + label:before { border: 2px solid rgb(0, 0, 0); } #bookingKitContainer .bk-header-languages, #bookingKitContainer .bk-detail-content .bk-header-calendar, #bookingKitContainer .bk-event-content .bk-header-calendar { border-color: rgba(0,0,0,.3) !important; } #bookingKitContainer h3.textColor, #bookingKitContainer .bk-detail-map h3 , #bookingKitContainer .bk-events-item, #bookingKitContainer .bk-header-box, #bookingKitContainer .bk-event-date-time-line, #bookingKitContainer .bk-advantages, #bookingKitContainer .bk-ev-grid-head, #bookingKitContainer .bk-grid-a-link-back { border-bottom-color : rgba(0,0,0,.30) !important; } #bookingKitContainer .bk-detail-grid .bk-detail-more-highlights, #bookingKitContainer .bk-detail-grid .bk-detail-informations { border-top-color : rgba(0,0,0,.30) !important; } #bookingKitContainer .bk-events-informations { border-right-color : rgba(0,0,0,.30) !important; } #bookingKitContainer .bk-events-footer { border-top-color: rgba( 0,0,0,.30) !important; } #bookingKitContainer .bk-detail-content .bk-detail-choose-date-title.on.ok, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title.wrong, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title.ok { border-top-color: rgba( 0,0,0,1 ) !important; } #bookingKitContainer { --offers-red-color: #CD3044; } #bookingKitContainer .alertColor { color: #CD3044 !important; } #bookingKitContainer .fillWarmColor { fill: #CD3044 !important; } #bookingKitContainer .bk-detail-content .bk-detail-choose-date-title.on.wrong, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title.wrong { border-bottom-color: #CD3044 !important; } #bookingKitContainer { --offers-red-color: rgb(205,48,68); } #bookingKitContainer .alertColor { color: rgb(205,48,68) !important; } #bookingKitContainer .fillWarmColor { fill: rgb(205,48,68) !important; } #bookingKitContainer .bk-detail-content .bk-detail-choose-date-title.on.wrong, #bookingKitContainer .bk-detail-content .bk-detail-pick-time-slot-title.wrong { border-bottom-color: rgb(205,48,68) !important; }#bookingKitContainer , #bookingKitContainer .pageBg {background-color: #ffffff !important} #bookingKitContainer .fillBgColor { fill: #ffffff !important; } #bookingKitContainer.bk-checkout_wrapper { background-color : #fff !important ;} #bookingKitContainer .bk-detail-content.sticky .bk-date-btn { border-color: #ffffff !important; } #bookingKitContainer , #bookingKitContainer .pageBg {background-color: rgb(255, 255, 255) !important} #bookingKitContainer .fillBgColor { fill: rgb(255, 255, 255) !important; } #bookingKitContainer.bk-checkout_wrapper { background-color : #fff !important ;} #bookingKitContainer .bk-detail-content.sticky .bk-date-btn { border-color: rgb(255, 255, 255) !important; } .widgetBg{background-color: rgba(255,255,255,0.5) !important;} #bookingKitContainer .bk-detail-desc-read-more { background: rgb(255,255,255); background: -webkit-linear-gradient(rgba(255,255,255,0), rgba(255,255,255,1), rgba(255,255,255,1)); background: -o-linear-gradient(rgba(255,255,255,0), rgba(255,255,255,1), rgba(255,255,255,1)); background: -moz-linear-gradient(rgba(255,255,255,0), rgba(255,255,255,1), rgba(255,255,255,1)); background: linear-gradient(rgba(255,255,255,0), rgba(255,255,255,1), rgba(255,255,255,1)); } #bookingKitContainer .voucherButton { background-color: #e73e1e } #bookingKitContainer .voucherButton { background-color: rgb(231, 62, 30) } #bookingKitContainer .voucherText { color: #ffffff !important } #bookingKitContainer .voucherTextFill { fill: #ffffff } #bookingKitContainer .voucherText { color: rgb(255, 255, 255) !important } #bookingKitContainer .voucherTextFill { fill: rgb(255, 255, 255) }';
+    head = document.head || document.getElementsByTagName('head')[0],
+    style = document.createElement('style');
+
+    style.type = 'text/css';
+    if (style.styleSheet){
+    style.styleSheet.cssText = css;
+    } else {
+    style.appendChild(document.createTextNode(css));
+    }
+
+    head.appendChild(style);
+
+    BookingKitApp.addCssSupportTest('display','grid');
+BookingKitApp.EventUrl = "https://eu5.bookingkit.de/onPage/detail/?";BookingKitApp.ListUrl = "https://eu5.bookingkit.de/onPage/events/?";BookingKitApp.ListByDateUrl = "https://eu5.bookingkit.de/onPage/eventsByDate/?cw=70e6986bf7537a80b36d67077f387944";BookingKitApp.CustomGridUrl = "https://eu5.bookingkit.de/onPage/calGrid/?cw=70e6986bf7537a80b36d67077f387944";BookingKitApp.VoucherList = "https://eu5.bookingkit.de/onPage/voucherGrid/?cw=70e6986bf7537a80b36d67077f387944";BookingKitApp.MergedUrl = "https://eu5.bookingkit.de/onPage/merged/?";BookingKitApp.CartUrl = "https://eu5.bookingkit.de/checkout2/getCart/?";BookingKitApp.CheckoutUrl = "https://eu5.bookingkit.de/checkout2/index/?";BookingKitApp.CheckoutDomain = "https://eu5.bookingkit.de";BookingKitApp.CurrentActionUrl = "https://eu5.bookingkit.de/checkout2/getCurrentAction/?";BookingKitApp.ListOffers = "https://eu5.bookingkit.de/onPage/listOffers/?cw=70e6986bf7537a80b36d67077f387944";BookingKitApp.OfferUrl = "https://eu5.bookingkit.de/onPage/detailOffer/?";BookingKitApp.globalWidgetUrl = "https://eu5.bookingkit.de/onPage/events/?v=b185885a2512a129b427b78378541b6a";BookingKitApp.Ref = "";BookingKitApp.EmbedRef = "";BookingKitApp.checkBkRefParameter();BookingKitApp.Version = "v.2";BookingKitApp.customWidget = "70e6986bf7537a80b36d67077f387944";BookingKitApp.saleParams = [];BookingKitApp.ImagesPath = "https://eu5.bookingkit.de/images/onpage/";BookingKitApp.sessionSeed = "dcdca21e74df654b3fd940300419a0f5";BookingKitApp.vendor = "b185885a2512a129b427b78378541b6a";;BookingKitApp.addAfterInit('BookingKitApp.loadBkPageFallback("https://eu5.bookingkit.de/onPage/list/?&cw=70e6986bf7537a80b36d67077f387944","bookingKitContainer","initControls");BookingKitApp.BaseUrl = "https://eu5.bookingkit.de/onPage/list/?&cw=70e6986bf7537a80b36d67077f387944";');BookingKitApp.translations = {};BookingKitApp.DefaultLanguage = 'de';BookingKitApp.translations['cs'] = {};BookingKitApp.translations['cs']['close']='Zavřít';BookingKitApp.translations['cs']['continue shopping']='Pokračovat v nákupu';BookingKitApp.translations['da'] = {};BookingKitApp.translations['da']['close']='luk';BookingKitApp.translations['da']['continue shopping']='fortsæt indkøb';BookingKitApp.translations['de'] = {};BookingKitApp.translations['de']['close']='schließen';BookingKitApp.translations['de']['continue shopping']='weiter einkaufen';BookingKitApp.translations['en'] = {};BookingKitApp.translations['en']['close']='close';BookingKitApp.translations['en']['continue shopping']='continue shopping';BookingKitApp.translations['es'] = {};BookingKitApp.translations['es']['close']='Cerrar';BookingKitApp.translations['es']['continue shopping']='Continuar comprando';BookingKitApp.translations['fr'] = {};BookingKitApp.translations['fr']['close']='fermer';BookingKitApp.translations['fr']['continue shopping']='continuer les achats';BookingKitApp.translations['it'] = {};BookingKitApp.translations['it']['close']='chiudi';BookingKitApp.translations['it']['continue shopping']='prosegui con gli acquisti';BookingKitApp.translations['nl'] = {};BookingKitApp.translations['nl']['close']='sluiten';BookingKitApp.translations['nl']['continue shopping']='doorgaan met winkelen';BookingKitApp.translations['no'] = {};BookingKitApp.translations['no']['close']='lukk';BookingKitApp.translations['no']['continue shopping']='fortsett å handle';BookingKitApp.translations['fi'] = {};BookingKitApp.translations['fi']['close']='sulje';BookingKitApp.translations['fi']['continue shopping']='jatka ostoksia';BookingKitApp.translations['sv'] = {};BookingKitApp.translations['sv']['close']='stäng';BookingKitApp.translations['sv']['continue shopping']='fortsätt handla';
